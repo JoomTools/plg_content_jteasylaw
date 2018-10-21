@@ -1,0 +1,11 @@
+{
+  "name"       : "JoomTools/plg_content_jtlaw",
+  "description": "Insert and cache law information from easyrechtssicher.de",
+  "license"    : "GPL-3+",
+  "require"    : {
+    "php": ">=7.1"
+  },
+  "require-dev": {
+    "joomla-projects/jorobo": "dev-develop"
+  }
+}
