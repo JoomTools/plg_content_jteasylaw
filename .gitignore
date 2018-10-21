@@ -60,5 +60,6 @@ tests/cache
 
 # Package building related
 /dist
+**/cache/**
 jorobo.ini
 auth.json

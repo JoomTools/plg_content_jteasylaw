@@ -12,9 +12,9 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
-
-JLoader::import('joomla.filesystem.file');
-JLoader::import('joomla.filesystem.folder');
+use Joomla\CMS\Filesystem\File;
+use Joomla\CMS\Filesystem\Folder;
+use Joomla\CMS\Uri\Uri;
 
 /**
  * Class plgContentJteasylaw
@@ -42,26 +42,21 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	protected $app;
 	/**
-	 * Revised plugin parameters
-	 *
-	 * @var     array
-	 * @since   1.0.0
-	 */
-	protected $plgParams = [];
-	/**
 	 * Collection point for error messages
 	 *
 	 * @var     array
 	 * @since   1.0.0
 	 */
-	protected $message = [];
+	private $message = [];
 	/**
-	 * Replacement for plugin call
+	 * Document calls
 	 *
-	 * @var     string
+	 * @var     array
 	 * @since   1.0.0
 	 */
-	protected $buffer = null;
+	private $documentCalls = [
+		'dse' => 'PLG_CONTENT_JTEASYLAW_CALL_DSE_LABEL',
+	];
 
 	/**
 	 * onContentPrepare
@@ -85,49 +80,73 @@ class PlgContentJteasylaw extends JPlugin
 			return;
 		}
 
-		$cachePath                    = JPATH_PLUGINS . '/content/jteasylaw/cache';
-		$cacheOnOff                   = filter_var($this->params->get('cache', 1), FILTER_VALIDATE_BOOLEAN);
-		$this->plgParams['server']    = rtrim($this->params->get('server'), '\\/');
-		$this->plgParams['cachetime'] = (int) $this->params->get('cachetime', 1440) * 60;
+		$debug      = (JDEBUG || $this->params->get('debug', '1') == '1') ? true : false;
+		$cachePath  = JPATH_PLUGINS . '/content/jteasylaw/cache';
+		$cacheOnOff = filter_var($this->params->get('cache', 1), FILTER_VALIDATE_BOOLEAN);
+		$licenseKey = $this->params->get('licensekey', '');
+		$methode    = $this->params->get('methode', 'html');
+		$language   = $this->params->get('language', 'de');
+		$cacheTime  = (int) $this->params->get('cachetime', 1440) * 60;
+		// $domain = Uri::getInstance()->getHost();
+		$domain = 'test.de';
 
-		if ($this->plgParams['server'] == '')
+		if (empty($licenseKey))
 		{
-			$this->message['warning'][] = Text::_('PLG_CONTENT_JTEASYLAW_WARNING_NO_SERVER');
+			$this->app->enqueueMessage(Text::_('PLG_CONTENT_JTEASYLAW_WARNING_NO_LICENSEKEY'), 'error');
+
+			return;
 		}
 
-		if ($this->plgParams['cachetime'] < '600')
+		if ($cacheTime < 600)
 		{
-			$this->plgParams['cachetime'] = '600';
+			$cacheTime = 600;
 		}
 
 		if ($cacheOnOff === false)
 		{
-			$this->plgParams['cachetime'] = '0';
-		}
-
-		if (!JFolder::exists($cachePath))
-		{
-			JFolder::create($cachePath);
+			$cacheTime = 0;
 		}
 
 		$plgCalls = $this->getPlgCalls($article->text);
 
-		foreach ($plgCalls as $plgCall)
+		foreach ($plgCalls[0] as $key => $plgCall)
 		{
-			$fileName  = strtolower($plgCall[3]) . '.html';
-			$cacheFile = $cachePath . '/' . $fileName;
+			$fileName         = strtolower($plgCalls[1][$key][0]) . '.html';
+			$language         = !empty($plgCalls[1][$key][1]) ? strtolower($plgCalls[1][$key][1]) : $language;
+			$cacheFile        = $cachePath . '/' . $language . '/' . $fileName;
+			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/dse/' . $licenseKey . '/' . $domain . '.' . $methode;
+			$easylawServerUrl = 'http://localhost:8080/jtlawupdateserver/easy/' . strtolower($plgCalls[1][$key][0]) . '.' . $methode;
 
-			if ($useCacheFile = JFile::exists($cacheFile))
+			if (!Folder::exists(dirname($cacheFile)))
 			{
-				$useCacheFile = $this->getFileTime($cacheFile);
+				Folder::create(dirname($cacheFile));
 			}
 
-			$this->setBuffer($cacheFile, $useCacheFile);
-			$article->text = str_replace($plgCall[0], $this->buffer, $article->text);
-			$this->buffer  = null;
+			if ($useCacheFile = File::exists($cacheFile))
+			{
+				$useCacheFile = $this->getFileTime($cacheFile, $cacheTime);
+			}
+
+			if($useCacheFile === false)
+			{
+				if ($methode == 'html')
+				{
+					$buffer = $this->getHtml($cacheFile, $easylawServerUrl);
+				}
+				else
+				{
+					$buffer = $this->getJson($cacheFile, $easylawServerUrl, $language);
+				}
+			}
+			else
+			{
+				$buffer = $this->getBuffer($cacheFile);
+			}
+
+			$article->text = str_replace($plgCall, $buffer, $article->text);
 		}
 
-		if (JDEBUG && !empty($this->message))
+		if ($debug && !empty($this->message))
 		{
 			foreach ($this->message as $type => $msgs)
 			{
@@ -153,21 +172,40 @@ class PlgContentJteasylaw extends JPlugin
 	protected function getPlgCalls($text)
 	{
 		$regex = '@(<(\w*+)[^>]*>|){jteasylaw\s(.*)}(</\\2>|)@siU';
-		$p1    = preg_match_all($regex, $text, $matches, PREG_SET_ORDER);
+		$p1    = preg_match_all($regex, $text, $matches);
 
 		if ($p1)
 		{
-			foreach ($matches as $key => $match)
-			{
-				$closeTag = ($match[2] != '') ? strpos($match[4], $match[2]) : true;
+			// Exclude <code/> and <pre/> matches
+			$code = array_keys($matches[1], '<code>');
+			$pre  = array_keys($matches[1], '<pre>');
 
-				if (!$closeTag)
-				{
-					$matches[$key][0] = str_replace($match[1], '', $match[0]);
-				}
+			if (!empty($code) || !empty($pre))
+			{
+				array_walk($matches,
+					function (&$array, $key, $tags) {
+						foreach ($tags as $tag)
+						{
+							if ($tag !== null && $tag !== false)
+							{
+								unset($array[$tag]);
+							}
+						}
+					}, array_merge($code, $pre)
+				);
 			}
 
-			return $matches;
+			$options = [];
+
+			foreach ($matches[0] as $key => $value)
+			{
+				$options[$key] = explode(',', $matches[3][$key]);
+			}
+
+			return array(
+				$matches[0],
+				$options,
+			);
 		}
 
 		return array();
@@ -176,15 +214,15 @@ class PlgContentJteasylaw extends JPlugin
 	/**
 	 * Check to see if the cache file is up to date
 	 *
-	 * @param   string  $file  Filename with absolute path
+	 * @param   string  $file       Filename with absolute path
+	 * @param   int     $cacheTime  Cachetime setup in params
 	 *
 	 * @return   bool  true if cached file is up to date
 	 * @since    1.0.0
 	 */
-	protected function getFileTime($file)
+	protected function getFileTime($file, $cacheTime)
 	{
 		$time      = time();
-		$cacheTime = $this->plgParams['cachetime'];
 		$fileTime  = filemtime($file);
 
 		$control = $time - $fileTime;
@@ -200,50 +238,178 @@ class PlgContentJteasylaw extends JPlugin
 	/**
 	 * Load HTML file from Server or get cached file
 	 *
-	 * @param   string $cacheFile    Filename with absolute path
-	 * @param   bool   $useCacheFile @see PlgContentJtlaw->getFileTime($file)
+	 * @param   string  $cacheFile         Filename with absolute path
+	 * @param   string  $easylawServerUrl  EasyLaw Server-URL for API-Call
 	 *
 	 * @return   bool  true if buffer is set else false
 	 * @since    1.0.0
 	 */
-	protected function setBuffer($cacheFile, $useCacheFile = false)
+	protected function getHtml($cacheFile, $easylawServerUrl)
 	{
-		$server   = $this->plgParams['server'];
+		$error    = false;
 		$fileName = basename($cacheFile);
+		$documentCall = File::stripExt($fileName);
+		$documentCall = Text::_($this->documentCalls[$documentCall]);
 
-		if ($useCacheFile === false)
+		$http = JHttpFactory::getHttp();
+		$data = $http->get($easylawServerUrl);
+
+		if ($data->code >= 200 && $data->code < 400)
 		{
-			$http = JHttpFactory::getHttp();
-			$data = $http->get($server . '/' . $fileName);
+			preg_match('@<body[^>]*>(.*?)<\/body>@is' ,$data->body, $matches);
 
-			if ($data->code >= 200 && $data->code < 400)
+			$html = $matches[1];
+
+			if (!empty($html))
 			{
-				$result = preg_replace(array('@<br>@i'), array('<br />'), $data->body);
+				$this->setBuffer($cacheFile, $html);
 
-				JFile::delete($cacheFile);
-				JFile::write($cacheFile, $result);
-
-				$this->buffer = $result;
-
-				return true;
+				return $html;
 			}
-
-			if (JFile::exists($cacheFile))
-			{
-				$this->setBuffer($cacheFile, true);
-
-				return true;
-			}
-
+		}
+		else
+		{
 			$this->message['error'][] = Text::sprintf(
-				'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $fileName, $data->code
+				'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $documentCall, $data->code, '<br />' . $data->body
 			);
-
-			return false;
 		}
 
-		$this->buffer = @file_get_contents($cacheFile);
+		return $this->getBuffer($cacheFile);
+	}
 
-		return true;
+	/**
+	 * Load HTML file from Server or get cached file
+	 *
+	 * @param   string  $cacheFile         Filename with absolute path
+	 * @param   string  $easylawServerUrl  EasyLaw Server-URL for API-Call
+	 * @param   string  $language          Language shortcode (de, en)
+	 *
+	 * @return   string
+	 * @since    1.0.0
+	 */
+	protected function getJson($cacheFile, $easylawServerUrl, $language)
+	{
+		$error    = false;
+		$message = [];
+		$fileName = basename($cacheFile);
+		$documentCall = File::stripExt($fileName);
+		$documentCall = $this->documentCalls[$documentCall];
+		$domain   = Uri::getInstance()->getHost();
+		$domain   = 'test.de';
+
+		$http = JHttpFactory::getHttp();
+		$data = $http->get($easylawServerUrl);
+
+		if ($data->code >= 200 && $data->code < 400)
+		{
+			$result = json_decode($data->body);
+
+
+			if (empty($result->ok))
+			{
+				$message[] = $result;
+				$error = true;
+			}
+
+			if ($result->ok === 0)
+			{
+				$message[] = $result->errMsg;
+				$error = true;
+			}
+
+			/* TODO validate language
+			if (strtolower($result->language) != $language && $error === false)
+			{
+				$error = true;
+			} */
+
+			/* TODO validate domain
+			if ($result->domain != $domain && $error === false)
+			{
+				$error = true;
+			} */
+
+			if ($error === false)
+			{
+				$html = $this->formatRules($result->rules);
+
+				if (!empty($html))
+				{
+					$this->setBuffer($cacheFile, $html);
+
+					return $html;
+				}
+			}
+		}
+		else
+		{
+			$this->message['error'][] = Text::sprintf(
+				'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $documentCall, $data->code, implode('<br />', $message)
+			);
+		}
+
+		return $this->getBuffer($cacheFile);
+	}
+
+	private function formatRules(array $rules)
+	{
+		$html      = '';
+		$hTag      = (int) $this->params->get('htag', '1');
+		$container = 'div';
+
+		foreach ($rules as $rule)
+		{
+			$level = $hTag + (int) $rule->level - 2;
+			$level = ($level < 1) ? 1 : $level;
+			$level = ($level > 6) ? 6 : $level;
+			$html .= '<' . $container . ' id="' . $rule->name . '" class="' . $rule->name . ' level' . $level . '">';
+
+			if (!empty($rule->header))
+			{
+				$html .= '<h' . $level . '>' . strip_tags($rule->header) . '</h' . $level . '>';
+			}
+
+			if (!empty($rule->content))
+			{
+				$html .= '<p>' . $rule->content . '</p>';
+			}
+
+			if (!empty($rule->rules) && is_array($rule->rules))
+			{
+				$html .= $this->formatRules($rule->rules);
+			}
+
+			$html .= '</' . $container . '>';
+		}
+
+		return $html;
+	}
+
+	/**
+	 * Get content from cache
+	 *
+	 * @param   string  $cacheFile  Path to cachefile
+	 *
+	 * @return   string
+	 * @since    1.0.0
+	 */
+	private function getBuffer($cacheFile)
+	{
+		return @file_get_contents($cacheFile);
+	}
+
+	/**
+	 * Write content to cache
+	 *
+	 * @param   string  $cacheFile  Path to cachefile
+	 * @param   string  $html       Content to write to cachefile
+	 *
+	 * @return   void
+	 * @since    1.0.0
+	 */
+	private function setBuffer($cacheFile, $html)
+	{
+		JFile::delete($cacheFile);
+		JFile::write($cacheFile, $html);
 	}
 }
