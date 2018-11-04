@@ -23,8 +23,19 @@
 				<field name="licensekey"
 				       type="text"
 				       default=""
+				       filter="alnum"
 				       label="PLG_CONTENT_JTEASYLAW_LICENSEKEY_LABEL"
-				       description="PLG_CONTENT_JTEASYLAW_LICENSEKEY_DESC"/>
+				       description="PLG_CONTENT_JTEASYLAW_LICENSEKEY_DESC"
+				/>
+				<field name="language"
+				       type="list"
+				       default="de"
+				       label="PLG_CONTENT_JTEASYLAW_LANGUAGE_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_LANGUAGE_DESC"
+				>
+					<option value="de">PLG_CONTENT_JTEASYLAW_LANGUAGE_DE</option>
+					<option value="en">PLG_CONTENT_JTEASYLAW_LANGUAGE_EN</option>
+				</field>
 				<field name="cache"
 				       type="radio"
 				       class="btn-group btn-group-yesno"
@@ -39,9 +50,75 @@
 				       default="1440"
 				       label="PLG_CONTENT_JTEASYLAW_CACHETIME_LABEL"
 				       description="PLG_CONTENT_JTEASYLAW_CACHETIME_DESC"
-				       validate=""
+				       filter="int"
 				       showon="cache:1"
 				/>
+
+				<field name="spacer1" type="spacer" hr="true" />
+
+				<field name="methode"
+				       type="radio"
+				       class="btn-group"
+				       default="html"
+				       disabled="true"
+				       label="PLG_CONTENT_JTEASYLAW_METHODE_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_METHODE_DESC"
+				>
+					<option value="html">JNO</option>
+					<option value="json">JYES</option>
+				</field>
+				<field name="htag"
+				       type="list"
+				       default="1"
+				       label="PLG_CONTENT_JTEASYLAW_HTAG_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_HTAG_DESC"
+				       filter="int"
+				       showon="methode:json"
+				>
+					<option value="1">H1</option>
+					<option value="2">H2</option>
+					<option value="3">H3</option>
+				</field>
+				<field name="ctag"
+				       type="list"
+				       default="section"
+				       label="PLG_CONTENT_JTEASYLAW_CTAG_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_CTAG_DESC"
+				       showon="methode:json"
+				>
+					<option value="section">Section</option>
+					<option value="article">Article</option>
+					<option value="div">Div</option>
+				</field>
+				<field name="usecss"
+				       type="radio"
+				       class="btn-group btn-group-yesno"
+				       default="1"
+				       label="PLG_CONTENT_JTEASYLAW_USECSS_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_USECSS_DESC"
+				       filter="int"
+				       showon="methode:json"
+				>
+					<option value="0">JNO</option>
+					<option value="1">JYES</option>
+				</field>
+				<field name="css"
+				       type="textarea"
+				       rows="10"
+				       default=".jteasylaw .level1 {&#xD;&#xA;&#09;margin-top: 40px;&#xD;&#xA;}&#xD;&#xA;.jteasylaw .level2,&#xD;&#xA;.jteasylaw .level3,&#xD;&#xA;.jteasylaw .level4 {&#xD;&#xA;&#09;margin: 20px 0 0 20px;&#xD;&#xA;}"
+				       label="PLG_CONTENT_JTEASYLAW_CSS_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_CSS_DESC"
+				       showon="methode:json[AND]usecss:1"
+				/>
+				<field name="debug"
+				       type="radio"
+				       class="btn-group"
+				       default="0"
+				       label="PLG_CONTENT_JTEASYLAW_DEBUG_LABEL"
+				       description="PLG_CONTENT_JTEASYLAW_DEBUG_DESC">
+					<option value="0">JOFF</option>
+					<option value="1">JON</option>
+				</field>
 			</fieldset>
 
 		</fields>
