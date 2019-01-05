@@ -60,7 +60,6 @@
 				       type="radio"
 				       class="btn-group"
 				       default="html"
-				       disabled="true"
 				       label="PLG_CONTENT_JTEASYLAW_METHODE_LABEL"
 				       description="PLG_CONTENT_JTEASYLAW_METHODE_DESC"
 				>

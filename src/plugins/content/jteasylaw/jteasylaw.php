@@ -67,6 +67,7 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	private $documentCalls = [
 		'dse' => 'PLG_CONTENT_JTEASYLAW_CALL_DSE_LABEL',
+		'imp' => 'PLG_CONTENT_JTEASYLAW_CALL_IMP_LABEL',
 	];
 
 	/**
@@ -93,7 +94,7 @@ class PlgContentJteasylaw extends JPlugin
 
 		$debug       = filter_var($this->params->get('debug', 0),FILTER_VALIDATE_BOOLEAN);
 		$licenseKey  = $this->params->get('licensekey', '');
-		$cachePath   = JPATH_PLUGINS . '/content/jteasylaw/cache';
+		$cachePath   = JPATH_CACHE . '/plg_content_jteasylaw';
 		$cacheOnOff  = filter_var($this->params->get('cache', 1), FILTER_VALIDATE_BOOLEAN);
 		$cacheTime   = (int) $this->params->get('cachetime', 1440) * 60;
 		$methode     = $this->params->get('methode', 'html');
@@ -102,7 +103,7 @@ class PlgContentJteasylaw extends JPlugin
 		$activeLang  = strtolower(substr(Factory::getLanguage()->getTag(), 0, 2));
 		$language    = in_array($activeLang, $this->supportedLangguages) ? $activeLang : $defaultLang;
 		$domain      = Uri::getInstance()->getHost();
-		// $domain      = 'test.de';
+//		$domain      = 'test.de';
 
 		if (empty($licenseKey))
 		{
@@ -125,12 +126,31 @@ class PlgContentJteasylaw extends JPlugin
 
 		foreach ($plgCalls[0] as $key => $plgCall)
 		{
-			$fileName         = strtolower($plgCalls[1][$key][0]) . '.html';
-			$language         = !empty($plgCalls[1][$key][1]) ? strtolower($plgCalls[1][$key][1]) : $language;
-			$cacheFile        = $cachePath . '/' . $language . '/' . $fileName;
+			$callType = strtolower($plgCalls[1][$key][0]);
+			$fileName = $callType . '.html';
+
+			if (!empty($plgCalls[1][$key][1]))
+			{
+				// Get preferred language from plugin call
+				$callLang = strtolower($plgCalls[1][$key][1]);
+
+				// Validate if language is supported
+				$supportedLangguages = in_array($callLang, $this->supportedLangguages) ? true : false;
+
+				// Set site language or default language if preferred language is not supported
+				$language = $supportedLangguages ? $callLang : $language;
+
+				// Define error message if language is not supported
+				if ($supportedLangguages === false)
+				{
+					$this->message['warning'][] = Text::sprintf('PLG_CONTENT_JTEASYLAW_WARNING_LANGUAGE', $callLang, $language);
+				}
+			}
+
+			$cacheFile = $cachePath . '/' . $language . '/' . $fileName;
 
 			// @TODO consider language
-			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/dse/' . $licenseKey . '/' . $domain . '.' . $methode;
+			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/' . $callType . '/' . $licenseKey . '/' . $domain . '.' . $methode;
 			// $easylawServerUrl = 'http://localhost:8080/jtlawupdateserver/easy/' . strtolower($plgCalls[1][$key][0]) . '.' . $methode;
 
 			if (!Folder::exists(dirname($cacheFile)))
@@ -170,7 +190,7 @@ class PlgContentJteasylaw extends JPlugin
 		}
 
 
-			if ($debug && !empty($this->message))
+		if ($debug && !empty($this->message))
 		{
 			foreach ($this->message as $type => $msgs)
 			{
@@ -321,62 +341,65 @@ class PlgContentJteasylaw extends JPlugin
 
 		$http = JHttpFactory::getHttp();
 		$data = $http->get($easylawServerUrl);
+		$result = json_decode($data->body);
+
+		if ($result === null)
+		{
+			$result = $data->body;
+		}
+
+		if (empty($result->ok) && $result->ok !== 0)
+		{
+			$message[] = $result;
+			$error = true;
+		}
+
+		if ($result->ok === 0)
+		{
+			$message[] = $result->errMsg;
+			$error = true;
+		}
 
 		if ($data->code >= 200 && $data->code < 400)
 		{
-			$result = json_decode($data->body);
-
-
-			if (empty($result->ok) && $result->ok !== 0)
-			{
-				$message[] = $result;
-				$error = true;
-			}
-
-			if ($result->ok === 0)
-			{
-				$message[] = $result->errMsg;
-				$error = true;
-			}
-
 			/* @TODO validate language
-			if (strtolower($result->language) != $language && $error === false)
-			{
-				$error = true;
-			} */
+			 * if (strtolower($result->language) != $language && $error === false)
+			 * {
+			 * $error = true;
+			 * } */
 
 			/* @TODO validate domain
-			$domain   = Uri::getInstance()->getHost();
-			// $domain   = 'test.de';
-
-			if ($result->domain != $domain && $error === false)
-			{
-				$error = true;
-			} */
-
-			if ($error === false)
-			{
-				$cTag = $this->params->get('ctag', 'section');
-				$html = '<' . $cTag . ' class="jteasylaw">';
-				$html .= $this->formatRules($result->rules);
-				$html .= '</' . $cTag . '>';
-
-				if (!empty($html))
-				{
-					$this->setBuffer($cacheFile, $html);
-
-					return $html;
-				}
-			}
+			 * $domain   = Uri::getInstance()->getHost();
+			 * // $domain   = 'test.de';
+			 *
+			 * if ($result->domain != $domain && $error === false)
+			 * {
+			 * $error = true;
+			 * } */
 		}
-		else
+
+		if ($error === false)
 		{
-			$message[] = $data->body;
+			$cTag = $this->params->get('ctag', 'section');
+			$html = '<' . $cTag . ' class="jteasylaw">';
+			$html .= $this->formatRules($result->rules);
+			$html .= '</' . $cTag . '>';
+
+			if (!empty($html))
+			{
+				$this->setBuffer($cacheFile, $html);
+
+				return $html;
+			}
 		}
 
 		$fileName     = basename($cacheFile);
 		$documentCall = File::stripExt($fileName);
-		$documentCall = Text::_($this->documentCalls[$documentCall]);
+
+		if (!empty($this->documentCalls[$documentCall]))
+		{
+			$documentCall = Text::_($this->documentCalls[$documentCall]);
+		}
 
 		$this->message['error'][] = Text::sprintf(
 			'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $documentCall, $data->code, implode('<br />', $message)
@@ -402,15 +425,17 @@ class PlgContentJteasylaw extends JPlugin
 		foreach ($rules as $rule)
 		{
 			$cTag  = ($rule->level > 2) ? 'div' : $container;
-			$level = $hTag + (int) $rule->level - 2;
+			$level = (int) $rule->level - 1;
 			$level = ($level < 1) ? 1 : $level;
-			$level = ($level > 6) ? 6 : $level;
+			$hTag  = $hTag + (int) $rule->level - 2;
+			$hTag  = ($hTag < 1) ? 1 : $hTag;
+			$hTag  = ($hTag > 6) ? 6 : $hTag;
 
 			$html .= '<' . $cTag . ' id="' . $rule->name . '" class="' . $rule->name . ' level' . $level . '">';
 
 			if (!empty($rule->header))
 			{
-				$html .= '<h' . $level . '>' . strip_tags($rule->header) . '</h' . $level . '>';
+				$html .= '<h' . $hTag . '>' . strip_tags($rule->header) . '</h' . $hTag . '>';
 			}
 
 			if (!empty($rule->content))
