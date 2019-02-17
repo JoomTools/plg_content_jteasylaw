@@ -14,7 +14,6 @@ Der Plugin-Aufruf ist {jteasylaw DOKUMENT}
 DOKUMENT steht als Platzhalter für z.B.:
 - **dse** (Datenschutzerklärung)
 - _~~**imp** (Impressum)~~_
-- _~~... (Widerrufsbelehrung)~~_
 - _~~... (AGB)~~_
 
 Das war es auch schon.
@@ -38,7 +37,6 @@ The plugin call is {jteasylaw DOCUMENT}
 DOCUMENT is a placeholder for e.g.:
 - **dse** (Privacy-Statement)
 - _~~**imp** (Imprint)~~_
-- _~~... (Revocation)~~_
 - _~~... (Conditions)~~_
 
 That's all.
