@@ -50,7 +50,7 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	private $supportedLangguages = [
 		'de',
-		'en',
+		//'en',
 	];
 	/**
 	 * Collection point for error messages
@@ -67,7 +67,7 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	private $documentCalls = [
 		'dse' => 'PLG_CONTENT_JTEASYLAW_CALL_DSE_LABEL',
-		'imp' => 'PLG_CONTENT_JTEASYLAW_CALL_IMP_LABEL',
+		//'imp' => 'PLG_CONTENT_JTEASYLAW_CALL_IMP_LABEL',
 	];
 
 	/**
@@ -103,7 +103,6 @@ class PlgContentJteasylaw extends JPlugin
 		$activeLang  = strtolower(substr(Factory::getLanguage()->getTag(), 0, 2));
 		$language    = in_array($activeLang, $this->supportedLangguages) ? $activeLang : $defaultLang;
 		$domain      = Uri::getInstance()->getHost();
-//		$domain      = 'test.de';
 
 		if (empty($licenseKey))
 		{
@@ -112,9 +111,9 @@ class PlgContentJteasylaw extends JPlugin
 			return;
 		}
 
-		if ($cacheTime < 600)
+		if ($cacheTime < 3600)
 		{
-			$cacheTime = 600;
+			$cacheTime = 3600;
 		}
 
 		if ($cacheOnOff === false)
@@ -151,7 +150,6 @@ class PlgContentJteasylaw extends JPlugin
 
 			// @TODO consider language
 			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/' . $callType . '/' . $licenseKey . '/' . $domain . '.' . $methode;
-			// $easylawServerUrl = 'http://localhost:8080/jtlawupdateserver/easy/' . strtolower($plgCalls[1][$key][0]) . '.' . $methode;
 
 			if (!Folder::exists(dirname($cacheFile)))
 			{

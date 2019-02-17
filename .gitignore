@@ -63,3 +63,4 @@ tests/cache
 **/cache/**
 jorobo.ini
 auth.json
+/src/**/*.md

@@ -25,7 +25,7 @@ class PlgContentJteasylawInstallerScript
 	public function __construct()
 	{
 		// Define the minumum versions to be supported.
-		$this->minimumJoomla = '3.8';
+		$this->minimumJoomla = '3.9';
 		$this->minimumPhp    = '7.1';
 	}
 
