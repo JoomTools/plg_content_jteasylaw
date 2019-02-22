@@ -7,9 +7,9 @@
 		<type>plugin</type>
 		<folder>content</folder>
 		<client>site</client>
-		<version>1.0.0</version>
+		<version>1.0.1</version>
 		<downloads>
-			<downloadurl type="full" format="zip">https://github.com/JoomTools/plg_content_jteasylaw/releases/download/1.0.0/plg_content_jtlaw-1.0.0.zip</downloadurl>
+			<downloadurl type="full" format="zip">https://github.com/JoomTools/plg_content_jteasylaw/releases/download/1.0.1/plg_content_jteasylaw-1.0.1</downloadurl>
 		</downloads>
 		<maintainer>Guido De Gobbis</maintainer>
 		<php_minimum>7.1</php_minimum>
