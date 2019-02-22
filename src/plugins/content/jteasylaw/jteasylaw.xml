@@ -34,7 +34,7 @@
 				       description="PLG_CONTENT_JTEASYLAW_LANGUAGE_DESC"
 				>
 					<option value="de">PLG_CONTENT_JTEASYLAW_LANGUAGE_DE</option>
-					<!--<option value="en">PLG_CONTENT_JTEASYLAW_LANGUAGE_EN</option>-->
+					<option value="en">PLG_CONTENT_JTEASYLAW_LANGUAGE_EN</option>
 				</field>
 				<field name="cache"
 				       type="radio"

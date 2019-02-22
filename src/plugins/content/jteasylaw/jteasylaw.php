@@ -50,7 +50,7 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	private $supportedLangguages = [
 		'de',
-		//'en',
+		'en',
 	];
 	/**
 	 * Collection point for error messages
@@ -92,13 +92,25 @@ class PlgContentJteasylaw extends JPlugin
 			return;
 		}
 
-		$debug       = filter_var($this->params->get('debug', 0),FILTER_VALIDATE_BOOLEAN);
-		$licenseKey  = $this->params->get('licensekey', '');
-		$cachePath   = JPATH_CACHE . '/plg_content_jteasylaw';
-		$cacheOnOff  = filter_var($this->params->get('cache', 1), FILTER_VALIDATE_BOOLEAN);
-		$cacheTime   = (int) $this->params->get('cachetime', 1440) * 60;
+		$debug = filter_var(
+			$this->params->get('debug', 0),
+			FILTER_VALIDATE_BOOLEAN
+		);
+
+		$useCss = filter_var(
+			$this->params->get('usecss', 1),
+			FILTER_VALIDATE_BOOLEAN
+		);
+
+		$cachePath  = JPATH_CACHE . '/plg_content_jteasylaw';
+		$cacheTime  = (int) $this->params->get('cachetime', 1440) * 60;
+		$cacheOnOff = filter_var(
+			$this->params->get('cache', 1),
+			FILTER_VALIDATE_BOOLEAN
+		);
+
 		$methode     = $this->params->get('methode', 'html');
-		$useCss      = filter_var($this->params->get('usecss', 1), FILTER_VALIDATE_BOOLEAN);
+		$licenseKey  = $this->params->get('licensekey', '');
 		$defaultLang = $this->params->get('language', 'de');
 		$activeLang  = strtolower(substr(Factory::getLanguage()->getTag(), 0, 2));
 		$language    = in_array($activeLang, $this->supportedLangguages) ? $activeLang : $defaultLang;
@@ -106,7 +118,20 @@ class PlgContentJteasylaw extends JPlugin
 
 		if (empty($licenseKey))
 		{
-			$this->app->enqueueMessage(Text::_('PLG_CONTENT_JTEASYLAW_WARNING_NO_LICENSEKEY'), 'error');
+			$this->app->enqueueMessage(
+				Text::_('PLG_CONTENT_JTEASYLAW_WARNING_NO_LICENSEKEY'),
+				'error'
+			);
+
+			return;
+		}
+
+		if(strlen($licenseKey) != 25)
+		{
+			$this->app->enqueueMessage(
+				Text::_('PLG_CONTENT_JTEASYLAW_WRONG_LICENSEKEY'),
+				'error'
+			);
 
 			return;
 		}
@@ -125,7 +150,7 @@ class PlgContentJteasylaw extends JPlugin
 
 		foreach ($plgCalls[0] as $key => $plgCall)
 		{
-			$callType = strtolower($plgCalls[1][$key][0]);
+			$callType = trim(strtolower($plgCalls[1][$key][0]));
 			$fileName = $callType . '.html';
 
 			if (!empty($plgCalls[1][$key][1]))
@@ -142,14 +167,21 @@ class PlgContentJteasylaw extends JPlugin
 				// Define error message if language is not supported
 				if ($supportedLangguages === false)
 				{
-					$this->message['warning'][] = Text::sprintf('PLG_CONTENT_JTEASYLAW_WARNING_LANGUAGE', $callLang, $language);
+					$this->message['warning'][] = Text::sprintf(
+						'PLG_CONTENT_JTEASYLAW_WARNING_LANGUAGE',
+						$callLang,
+						$language
+					);
 				}
 			}
 
-			$cacheFile = $cachePath . '/' . $language . '/' . $fileName;
-
-			// @TODO consider language
-			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/' . $callType . '/' . $licenseKey . '/' . $domain . '.' . $methode;
+			$cacheFile        = $cachePath . '/' . $language . '/' . $fileName;
+			$easylawServerUrl = 'https://easyrechtssicher.de/api/download/'
+				. $callType . '/'
+				. $licenseKey . '/'
+				. $language . '/'
+				. $domain . '.'
+				. $methode;
 
 			if (!Folder::exists(dirname($cacheFile)))
 			{
@@ -316,7 +348,10 @@ class PlgContentJteasylaw extends JPlugin
 		$documentCall = Text::_($this->documentCalls[$documentCall]);
 
 		$this->message['error'][] = Text::sprintf(
-			'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $documentCall, $data->code, '<br />' . $data->body
+			'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER',
+			$documentCall,
+			$data->code,
+			'<br />' . $data->body
 		);
 
 		return $this->getBuffer($cacheFile);
@@ -334,11 +369,11 @@ class PlgContentJteasylaw extends JPlugin
 	 */
 	private function getJson($cacheFile, $easylawServerUrl, $language)
 	{
-		$error    = false;
+		$error   = false;
 		$message = [];
 
-		$http = JHttpFactory::getHttp();
-		$data = $http->get($easylawServerUrl);
+		$http   = JHttpFactory::getHttp();
+		$data   = $http->get($easylawServerUrl);
 		$result = json_decode($data->body);
 
 		if ($result === null)
@@ -346,34 +381,17 @@ class PlgContentJteasylaw extends JPlugin
 			$result = $data->body;
 		}
 
-		if (empty($result->ok) && $result->ok !== 0)
+		if (!is_object($result)
+			|| (is_object($result) && empty($result->ok) && $result->ok !== 0))
 		{
 			$message[] = $result;
-			$error = true;
+			$error     = true;
 		}
 
-		if ($result->ok === 0)
+		if (is_object($result) && $result->ok === 0)
 		{
 			$message[] = $result->errMsg;
-			$error = true;
-		}
-
-		if ($data->code >= 200 && $data->code < 400)
-		{
-			/* @TODO validate language
-			 * if (strtolower($result->language) != $language && $error === false)
-			 * {
-			 * $error = true;
-			 * } */
-
-			/* @TODO validate domain
-			 * $domain   = Uri::getInstance()->getHost();
-			 * // $domain   = 'test.de';
-			 *
-			 * if ($result->domain != $domain && $error === false)
-			 * {
-			 * $error = true;
-			 * } */
+			$error     = true;
 		}
 
 		if ($error === false)
@@ -400,7 +418,10 @@ class PlgContentJteasylaw extends JPlugin
 		}
 
 		$this->message['error'][] = Text::sprintf(
-			'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER', $documentCall, $data->code, implode('<br />', $message)
+			'PLG_CONTENT_JTEASYLAW_ERROR_NO_CACHE_SERVER',
+			$documentCall,
+			$data->code,
+			implode('<br />', $message)
 		);
 
 		return $this->getBuffer($cacheFile);
@@ -429,11 +450,14 @@ class PlgContentJteasylaw extends JPlugin
 			$hTag  = ($hTag < 1) ? 1 : $hTag;
 			$hTag  = ($hTag > 6) ? 6 : $hTag;
 
-			$html .= '<' . $cTag . ' id="' . $rule->name . '" class="' . $rule->name . ' level' . $level . '">';
+			$html .= '<' . $cTag . ' id="' . $rule->name
+				. '" class="' . $rule->name . ' level' . $level . '">';
 
 			if (!empty($rule->header))
 			{
-				$html .= '<h' . $hTag . '>' . strip_tags($rule->header) . '</h' . $hTag . '>';
+				$html .= '<h' . $hTag . '>'
+					. strip_tags($rule->header)
+					. '</h' . $hTag . '>';
 			}
 
 			if (!empty($rule->content))
